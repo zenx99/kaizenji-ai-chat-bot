@@ -15,7 +15,12 @@ import {
   AlertCircle,
   Menu,
   Paperclip,
-  Mic
+  Mic,
+  Plus,
+  Copy,
+  ThumbsUp,
+  ThumbsDown,
+  RotateCcw
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ChatSidebar } from "./ChatSidebar";
@@ -59,6 +64,7 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   // Load usage from localStorage
@@ -149,6 +155,13 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Auto-focus input on desktop
+  useEffect(() => {
+    if (window.innerWidth > 768) {
+      inputRef.current?.focus();
+    }
+  }, []);
 
   const updateUsageCount = () => {
     const today = new Date().toDateString();
@@ -241,6 +254,14 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
         await saveMessage(user.uid, currentSessionId, userMessage);
       }
 
+      // Clear input immediately for better UX
+      setInputMessage("");
+      setSelectedImage(null);
+      setImagePreview(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+
       // Call API
       const apiUrl = `https://kaiz-apis.gleeze.com/api/gemini-vision?q=${encodeURIComponent(inputMessage || "อธิบายรูปนี้")}&uid=${user.uid}&imageUrl=${encodeURIComponent(imageUrl)}&apikey=${API_KEY}`;
       
@@ -277,12 +298,6 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
       });
     } finally {
       setIsLoading(false);
-      setInputMessage("");
-      setSelectedImage(null);
-      setImagePreview(null);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
     }
   };
 
@@ -318,10 +333,18 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
     setSidebarOpen(false);
   };
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({
+      title: "คัดลอกแล้ว",
+      description: "ข้อความถูกคัดลอกไปยังคลิปบอร์ดแล้ว",
+    });
+  };
+
   const remainingQuestions = RATE_LIMIT - questionsUsed;
 
   return (
-    <div className="h-screen flex bg-gray-50 dark:bg-gray-900">
+    <div className="h-screen flex bg-white dark:bg-gray-900 overflow-hidden">
       <ChatSidebar
         userId={user.uid}
         currentSessionId={currentSessionId}
@@ -333,25 +356,25 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
 
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
-        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
+        {/* Header - Mobile Optimized */}
+        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-3 sm:px-4 py-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+                className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 shrink-0"
               >
                 <Menu className="w-5 h-5" />
               </Button>
               
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-green-400 to-blue-500 flex items-center justify-center">
-                  <Bot className="w-5 h-5 text-white" />
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-r from-green-400 to-blue-500 flex items-center justify-center shrink-0">
+                  <Bot className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                 </div>
-                <div>
-                  <h1 className="text-lg font-semibold text-gray-900 dark:text-white">AI Assistant</h1>
+                <div className="min-w-0">
+                  <h1 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white truncate">AI Assistant</h1>
                   {useLocalStorage && (
                     <p className="text-xs text-orange-500">โหมดออฟไลน์</p>
                   )}
@@ -359,8 +382,8 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
               </div>
             </div>
             
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+            <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+              <div className="hidden sm:flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                 <Clock className="w-4 h-4" />
                 <span className={`${remainingQuestions <= 3 ? 'text-orange-500' : ''}`}>
                   {remainingQuestions}/{RATE_LIMIT}
@@ -372,78 +395,146 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
                 onClick={onLogout}
                 className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
               >
-                <LogOut className="w-4 h-4 mr-2" />
-                ออกจากระบบ
+                <LogOut className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">ออกจากระบบ</span>
               </Button>
             </div>
           </div>
+          
+          {/* Mobile Usage Counter */}
+          <div className="sm:hidden mt-2 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+            <Clock className="w-4 h-4" />
+            <span className={`${remainingQuestions <= 3 ? 'text-orange-500' : ''}`}>
+              เหลือ {remainingQuestions}/{RATE_LIMIT} ครั้ง
+            </span>
+          </div>
         </div>
 
-        {/* Messages */}
+        {/* Messages - ChatGPT Style */}
         <ScrollArea className="flex-1 bg-gray-50 dark:bg-gray-900">
-          <div className="max-w-4xl mx-auto p-4 space-y-6">
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex gap-4 ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                {message.type === 'ai' && (
-                  <Avatar className="w-8 h-8 bg-gradient-to-r from-green-400 to-blue-500 shrink-0">
-                    <AvatarFallback className="bg-transparent">
-                      <Bot className="w-5 h-5 text-white" />
-                    </AvatarFallback>
-                  </Avatar>
-                )}
-                
-                <div className={`max-w-[70%] ${message.type === 'user' ? 'order-first' : ''}`}>
-                  <Card className={`p-4 ${
-                    message.type === 'user' 
-                      ? 'bg-blue-600 text-white border-0' 
-                      : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700'
-                  }`}>
-                    {message.imageUrl && (
-                      <img
-                        src={message.imageUrl}
-                        alt="Uploaded"
-                        className="max-w-full max-h-64 rounded-lg mb-3 object-contain"
-                      />
-                    )}
-                    <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
-                  </Card>
-                  <p className={`text-xs mt-2 px-1 ${
-                    message.type === 'user' ? 'text-right text-gray-500' : 'text-gray-500'
-                  }`}>
-                    {new Date(message.timestamp).toLocaleTimeString('th-TH')}
+          <div className="w-full">
+            {messages.length === 0 && !isLoading && (
+              <div className="h-full flex items-center justify-center p-4">
+                <div className="text-center max-w-md">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-r from-green-400 to-blue-500 flex items-center justify-center">
+                    <Bot className="w-8 h-8 text-white" />
+                  </div>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                    ยินดีต้อนรับสู่ AI Assistant
+                  </h2>
+                  <p className="text-gray-600 dark:text-gray-400 text-sm">
+                    เริ่มการสนทนาใหม่ด้วยการพิมพ์ข้อความหรือส่งรูปภาพ
                   </p>
                 </div>
+              </div>
+            )}
 
-                {message.type === 'user' && (
-                  <Avatar className="w-8 h-8 bg-blue-600 shrink-0">
-                    <AvatarFallback className="bg-transparent">
-                      <User className="w-5 h-5 text-white" />
-                    </AvatarFallback>
-                  </Avatar>
-                )}
+            {messages.map((message, index) => (
+              <div
+                key={message.id || index}
+                className={`w-full border-b border-gray-100 dark:border-gray-800 ${
+                  message.type === 'ai' ? 'bg-gray-50 dark:bg-gray-800/50' : 'bg-white dark:bg-gray-900'
+                }`}
+              >
+                <div className="max-w-3xl mx-auto px-4 py-6">
+                  <div className="flex gap-4">
+                    {/* Avatar */}
+                    <div className="shrink-0">
+                      {message.type === 'ai' ? (
+                        <div className="w-8 h-8 rounded-sm bg-gradient-to-r from-green-400 to-blue-500 flex items-center justify-center">
+                          <Bot className="w-5 h-5 text-white" />
+                        </div>
+                      ) : (
+                        <div className="w-8 h-8 rounded-sm bg-purple-600 flex items-center justify-center">
+                          <User className="w-5 h-5 text-white" />
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Message Content */}
+                    <div className="flex-1 min-w-0">
+                      <div className="group">
+                        {message.imageUrl && (
+                          <div className="mb-3">
+                            <img
+                              src={message.imageUrl}
+                              alt="Uploaded"
+                              className="max-w-full max-h-64 rounded-lg object-contain border border-gray-200 dark:border-gray-700"
+                            />
+                          </div>
+                        )}
+                        
+                        <div className="prose prose-gray dark:prose-invert max-w-none">
+                          <p className="whitespace-pre-wrap leading-relaxed text-gray-900 dark:text-gray-100 mb-0">
+                            {message.content}
+                          </p>
+                        </div>
+                        
+                        {/* Message Actions - Only for AI messages */}
+                        {message.type === 'ai' && (
+                          <div className="flex items-center gap-2 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => copyToClipboard(message.content)}
+                              className="h-8 px-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 px-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                            >
+                              <ThumbsUp className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 px-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                            >
+                              <ThumbsDown className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 px-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                            >
+                              <RotateCcw className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <p className="text-xs text-gray-500 mt-2">
+                        {new Date(message.timestamp).toLocaleTimeString('th-TH')}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             ))}
             
+            {/* Loading State */}
             {isLoading && (
-              <div className="flex gap-4 justify-start">
-                <Avatar className="w-8 h-8 bg-gradient-to-r from-green-400 to-blue-500">
-                  <AvatarFallback className="bg-transparent">
-                    <Bot className="w-5 h-5 text-white" />
-                  </AvatarFallback>
-                </Avatar>
-                <Card className="bg-white dark:bg-gray-800 p-4 border border-gray-200 dark:border-gray-700">
-                  <div className="flex items-center gap-3">
-                    <div className="flex gap-1">
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-100" />
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-200" />
+              <div className="w-full bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800">
+                <div className="max-w-3xl mx-auto px-4 py-6">
+                  <div className="flex gap-4">
+                    <div className="w-8 h-8 rounded-sm bg-gradient-to-r from-green-400 to-blue-500 flex items-center justify-center">
+                      <Bot className="w-5 h-5 text-white" />
                     </div>
-                    <span className="text-gray-600 dark:text-gray-400 text-sm">กำลังคิด...</span>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3">
+                        <div className="flex gap-1">
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-100" />
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-200" />
+                        </div>
+                        <span className="text-gray-600 dark:text-gray-400 text-sm">กำลังคิด...</span>
+                      </div>
+                    </div>
                   </div>
-                </Card>
+                </div>
               </div>
             )}
             
@@ -451,12 +542,12 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
           </div>
         </ScrollArea>
 
-        {/* Input Area */}
-        <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4">
-          <div className="max-w-4xl mx-auto">
+        {/* Input Area - Mobile Optimized */}
+        <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-3 sm:p-4">
+          <div className="max-w-3xl mx-auto">
             {remainingQuestions <= 0 && (
-              <div className="mb-4 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg flex items-center gap-2">
-                <AlertCircle className="w-5 h-5 text-orange-500" />
+              <div className="mb-3 sm:mb-4 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-orange-500 shrink-0" />
                 <span className="text-orange-700 dark:text-orange-300 text-sm">
                   คุณได้ใช้งานครบ {RATE_LIMIT} ครั้งแล้ว กรุณารอ 1 วันแล้วลองใหม่
                 </span>
@@ -464,11 +555,11 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
             )}
             
             {imagePreview && (
-              <div className="mb-4 relative inline-block">
+              <div className="mb-3 sm:mb-4 relative inline-block">
                 <img
                   src={imagePreview}
                   alt="Preview"
-                  className="max-w-32 max-h-32 rounded-lg object-cover border-2 border-gray-200 dark:border-gray-600"
+                  className="max-w-24 max-h-24 sm:max-w-32 sm:max-h-32 rounded-lg object-cover border-2 border-gray-200 dark:border-gray-600"
                 />
                 <Button
                   variant="destructive"
@@ -487,7 +578,7 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
               </div>
             )}
             
-            <div className="flex gap-3 items-end">
+            <div className="flex gap-2 sm:gap-3 items-end">
               <Input
                 type="file"
                 ref={fileInputRef}
@@ -501,30 +592,35 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
                 size="icon"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isLoading || remainingQuestions <= 0}
-                className="shrink-0"
+                className="shrink-0 w-10 h-10 sm:w-12 sm:h-12"
               >
-                <Paperclip className="w-4 h-4" />
+                <Paperclip className="w-4 h-4 sm:w-5 sm:h-5" />
               </Button>
               
               <div className="flex-1 relative">
                 <Input
+                  ref={inputRef}
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
                   onKeyDown={handleKeyPress}
-                  placeholder="พิมพ์ข้อความของคุณที่นี่..."
-                  className="pr-12 py-3 bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700"
+                  placeholder="ส่งข้อความไปยัง AI Assistant..."
+                  className="pr-12 sm:pr-14 py-3 sm:py-4 text-base bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 rounded-xl resize-none min-h-[44px] sm:min-h-[52px]"
                   disabled={isLoading || remainingQuestions <= 0}
                 />
                 <Button
                   onClick={handleSendMessage}
                   disabled={(!inputMessage.trim() && !selectedImage) || isLoading || remainingQuestions <= 0}
                   size="icon"
-                  className="absolute right-1 top-1 bottom-1 w-10 bg-blue-600 hover:bg-blue-700"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-10 sm:h-10 bg-gray-900 hover:bg-gray-800 dark:bg-white dark:hover:bg-gray-100 rounded-lg"
                 >
-                  <Send className="w-4 h-4" />
+                  <Send className="w-4 h-4 sm:w-5 sm:h-5 text-white dark:text-gray-900" />
                 </Button>
               </div>
             </div>
+            
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center px-2">
+              AI อาจมีข้อผิดพลาด กรุณาตรวจสอบข้อมูลสำคัญ
+            </p>
           </div>
         </div>
       </div>

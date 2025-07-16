@@ -25,6 +25,12 @@ import {
   subscribeToMessages,
   ChatMessage 
 } from "@/services/firebaseService";
+import {
+  saveMessageLocally,
+  createLocalChatSession,
+  getLocalMessages,
+  ChatMessage as LocalChatMessage
+} from "@/services/localStorageService";
 
 interface User {
   name: string;
@@ -49,6 +55,7 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
   const [questionsUsed, setQuestionsUsed] = useState(0);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [useLocalStorage, setUseLocalStorage] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -67,8 +74,10 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
   useEffect(() => {
     const initializeChat = async () => {
       try {
+        // Try Firebase first
         const sessionId = await createChatSession(user.uid, 'การสนทนาใหม่');
         setCurrentSessionId(sessionId);
+        setUseLocalStorage(false);
         
         // Add welcome message
         const welcomeMessage = {
@@ -80,23 +89,58 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
         
         await saveMessage(user.uid, sessionId, welcomeMessage);
       } catch (error) {
-        console.error('Error initializing chat:', error);
+        console.error('Firebase failed, using local storage:', error);
+        // Fallback to local storage
+        try {
+          const sessionId = createLocalChatSession(user.uid, 'การสนทนาใหม่');
+          setCurrentSessionId(sessionId);
+          setUseLocalStorage(true);
+          
+          // Add welcome message to local storage
+          const welcomeMessage = {
+            type: 'ai' as const,
+            content: `สวัสดี ${user.name}! ฉันคือ AI Assistant ฉันพร้อมที่จะช่วยเหลือคุณ คุณสามารถถามคำถามหรือส่งรูปภาพมาให้ฉันวิเคราะห์ได้เลย`,
+            timestamp: Date.now(),
+            userId: user.uid
+          };
+          
+          saveMessageLocally(user.uid, sessionId, welcomeMessage);
+          
+          // Load messages from local storage
+          const localMessages = getLocalMessages(user.uid, sessionId);
+          setMessages(localMessages);
+        } catch (localError) {
+          console.error('Local storage also failed:', localError);
+          toast({
+            title: "เกิดข้อผิดพลาด",
+            description: "ไม่สามารถเริ่มต้นแชทได้",
+            variant: "destructive"
+          });
+        }
       }
     };
 
     initializeChat();
-  }, [user.uid, user.name]);
+  }, [user.uid, user.name, toast]);
 
-  // Subscribe to messages for current session
+  // Subscribe to messages for current session (only for Firebase)
   useEffect(() => {
-    if (!currentSessionId) return;
+    if (!currentSessionId || useLocalStorage) return;
 
     const unsubscribe = subscribeToMessages(user.uid, currentSessionId, (newMessages) => {
       setMessages(newMessages);
     });
 
     return unsubscribe;
-  }, [currentSessionId, user.uid]);
+  }, [currentSessionId, user.uid, useLocalStorage]);
+
+  // Load local messages when using local storage
+  useEffect(() => {
+    if (useLocalStorage && currentSessionId) {
+      const localMessages = getLocalMessages(user.uid, currentSessionId);
+      setMessages(localMessages);
+    }
+  }, [useLocalStorage, currentSessionId, user.uid]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -164,8 +208,8 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
     
     if (questionsUsed >= RATE_LIMIT) {
       toast({
-        title: "เกินขด จำกัด",
-        description: `คุณใช้งานครบ ${RATE_LIMIT} ครั้งแล้วในชั่วโมงนี้ กรุณารอ 1 ชั่วโมงแล้วลองใหม่`,
+        title: "เกินขีดจำกัด",
+        description: `คุณใช้งานครบ ${RATE_LIMIT} ครั้งแล้วในวันนี้ กรุณารอ 1 วันแล้วลองใหม่`,
         variant: "destructive"
       });
       return;
@@ -180,7 +224,7 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
         imageUrl = await uploadImageToImgur(selectedImage);
       }
 
-      // Save user message to Firebase
+      // Save user message
       const userMessage = {
         type: 'user' as const,
         content: inputMessage || "รูปภาพที่ส่งมา",
@@ -189,7 +233,13 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
         userId: user.uid
       };
 
-      await saveMessage(user.uid, currentSessionId, userMessage);
+      if (useLocalStorage) {
+        saveMessageLocally(user.uid, currentSessionId, userMessage);
+        const updatedMessages = getLocalMessages(user.uid, currentSessionId);
+        setMessages(updatedMessages);
+      } else {
+        await saveMessage(user.uid, currentSessionId, userMessage);
+      }
 
       // Call API
       const apiUrl = `https://kaiz-apis.gleeze.com/api/gemini-vision?q=${encodeURIComponent(inputMessage || "อธิบายรูปนี้")}&uid=${user.uid}&imageUrl=${encodeURIComponent(imageUrl)}&apikey=${API_KEY}`;
@@ -205,13 +255,21 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
           userId: user.uid
         };
         
-        await saveMessage(user.uid, currentSessionId, aiMessage);
+        if (useLocalStorage) {
+          saveMessageLocally(user.uid, currentSessionId, aiMessage);
+          const updatedMessages = getLocalMessages(user.uid, currentSessionId);
+          setMessages(updatedMessages);
+        } else {
+          await saveMessage(user.uid, currentSessionId, aiMessage);
+        }
+        
         updateUsageCount();
       } else {
         throw new Error('No response from AI');
       }
 
     } catch (error) {
+      console.error('Error sending message:', error);
       toast({
         title: "เกิดข้อผิดพลาด",
         description: "ไม่สามารถส่งข้อความได้ กรุณาลองใหม่อีกครั้ง",
@@ -237,10 +295,16 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
 
   const handleNewChat = async () => {
     try {
-      const sessionId = await createChatSession(user.uid, 'การสนทนาใหม่');
+      let sessionId;
+      if (useLocalStorage) {
+        sessionId = createLocalChatSession(user.uid, 'การสนทนาใหม่');
+      } else {
+        sessionId = await createChatSession(user.uid, 'การสนทนาใหม่');
+      }
       setCurrentSessionId(sessionId);
       setSidebarOpen(false);
     } catch (error) {
+      console.error('Error creating new chat:', error);
       toast({
         title: "เกิดข้อผิดพลาด",
         description: "ไม่สามารถสร้างแชทใหม่ได้",
@@ -288,6 +352,9 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
                 </div>
                 <div>
                   <h1 className="text-lg font-semibold text-gray-900 dark:text-white">AI Assistant</h1>
+                  {useLocalStorage && (
+                    <p className="text-xs text-orange-500">โหมดออฟไลน์</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -391,7 +458,7 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
               <div className="mb-4 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg flex items-center gap-2">
                 <AlertCircle className="w-5 h-5 text-orange-500" />
                 <span className="text-orange-700 dark:text-orange-300 text-sm">
-                  คุณได้ใช้งานครบ {RATE_LIMIT} ครั้งแล้ว กรุณารอ 1 ชั่วโมงแล้วลองใหม่
+                  คุณได้ใช้งานครบ {RATE_LIMIT} ครั้งแล้ว กรุณารอ 1 วันแล้วลองใหม่
                 </span>
               </div>
             )}

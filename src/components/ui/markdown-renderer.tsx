@@ -67,7 +67,7 @@ export function MarkdownRenderer({ content, isDark = false }: MarkdownRendererPr
       if (match.start > lastIndex) {
         const beforeText = text.slice(lastIndex, match.start);
         if (beforeText.trim()) {
-          parts.push(formatText(beforeText, index * 2));
+          parts.push(formatText(beforeText, `before-${index}`));
         }
       }
       
@@ -75,7 +75,7 @@ export function MarkdownRenderer({ content, isDark = false }: MarkdownRendererPr
       if (match.type === 'block') {
         parts.push(
           <CodeBlock
-            key={index * 2 + 1}
+            key={`block-${index}`}
             code={match.code}
             language={match.language}
             isDark={isDark}
@@ -84,7 +84,7 @@ export function MarkdownRenderer({ content, isDark = false }: MarkdownRendererPr
       } else {
         parts.push(
           <code
-            key={index * 2 + 1}
+            key={`inline-${index}`}
             className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded text-sm font-mono border border-gray-200 dark:border-gray-700"
           >
             {match.code}
@@ -99,19 +99,19 @@ export function MarkdownRenderer({ content, isDark = false }: MarkdownRendererPr
     if (lastIndex < text.length) {
       const remainingText = text.slice(lastIndex);
       if (remainingText.trim()) {
-        parts.push(formatText(remainingText, matches.length * 2));
+        parts.push(formatText(remainingText, `remaining`));
       }
     }
     
     // If no matches found, return the original text formatted
     if (matches.length === 0) {
-      parts.push(formatText(text, 0));
+      parts.push(formatText(text, 'original'));
     }
     
     return parts;
   };
   
-  const formatText = (text: string, key: number): ReactNode => {
+  const formatText = (text: string, key: string | number): ReactNode => {
     // Handle bold, italic, and other markdown formatting
     const lines = text.split('\n');
     

@@ -239,13 +239,17 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
       }
 
       // Save user message
-      const userMessage = {
+      const userMessage: any = {
         type: 'user' as const,
         content: inputMessage || "รูปภาพที่ส่งมา",
         timestamp: Date.now(),
-        imageUrl: imagePreview || undefined,
         userId: user.uid
       };
+
+      // Only add imageUrl if it exists (avoid undefined in Firebase)
+      if (imagePreview) {
+        userMessage.imageUrl = imagePreview;
+      }
 
       if (useLocalStorage) {
         saveMessageLocally(user.uid, currentSessionId, userMessage);
@@ -345,7 +349,7 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
   const remainingQuestions = RATE_LIMIT - questionsUsed;
 
   return (
-    <div className="h-screen flex bg-white dark:bg-gray-900 overflow-hidden">
+    <div className="h-screen flex bg-gray-50 dark:bg-gray-900 overflow-hidden">
       <ChatSidebar
         userId={user.uid}
         currentSessionId={currentSessionId}
@@ -358,7 +362,7 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header - Mobile Optimized */}
-        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-3 sm:px-4 py-3">
+        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-3 sm:px-4 py-2 sm:py-3 sticky top-0 z-10">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               <Button
@@ -433,11 +437,11 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
             {messages.map((message, index) => (
               <div
                 key={message.id || index}
-                className={`w-full border-b border-gray-100 dark:border-gray-800 ${
+                className={`w-full ${
                   message.type === 'ai' ? 'bg-gray-50 dark:bg-gray-800/50' : 'bg-white dark:bg-gray-900'
                 }`}
               >
-                <div className="max-w-3xl mx-auto px-4 py-6">
+                <div className="max-w-3xl mx-auto px-4 py-4 sm:py-6">
                   <div className="flex gap-4">
                     {/* Avatar */}
                     <div className="shrink-0">
@@ -519,7 +523,7 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
             
             {/* Loading State */}
             {isLoading && (
-              <div className="w-full bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800">
+              <div className="w-full bg-gray-50 dark:bg-gray-800/50">
                 <div className="max-w-3xl mx-auto px-4 py-6">
                   <div className="flex gap-4">
                     <div className="w-8 h-8 rounded-sm bg-gradient-to-r from-green-400 to-blue-500 flex items-center justify-center">
@@ -545,7 +549,7 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
         </ScrollArea>
 
         {/* Input Area - Mobile Optimized */}
-        <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-3 sm:p-4">
+        <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-3 sm:p-4 sticky bottom-0">
           <div className="max-w-3xl mx-auto">
             {remainingQuestions <= 0 && (
               <div className="mb-3 sm:mb-4 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg flex items-center gap-2">
@@ -590,13 +594,13 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
               />
               
               <Button
-                variant="outline"
+                variant="ghost"
                 size="icon"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isLoading || remainingQuestions <= 0}
-                className="shrink-0 w-10 h-10 sm:w-12 sm:h-12"
+                className="shrink-0 w-10 h-10 text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
               >
-                <Paperclip className="w-4 h-4 sm:w-5 sm:h-5" />
+                <Paperclip className="w-5 h-5" />
               </Button>
               
               <div className="flex-1 relative">
@@ -605,17 +609,17 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
                   onKeyDown={handleKeyPress}
-                  placeholder="ส่งข้อความไปยัง AI Assistant..."
-                  className="pr-12 sm:pr-14 py-3 sm:py-4 text-base bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 rounded-xl resize-none min-h-[44px] sm:min-h-[52px]"
+                  placeholder="Message AI Assistant..."
+                  className="pr-12 sm:pr-14 py-3 sm:py-4 text-base bg-gray-100 dark:bg-gray-700 border-0 rounded-3xl resize-none min-h-[44px] sm:min-h-[52px] focus:bg-white dark:focus:bg-gray-800 focus:ring-2 focus:ring-blue-500 transition-colors"
                   disabled={isLoading || remainingQuestions <= 0}
                 />
                 <Button
                   onClick={handleSendMessage}
                   disabled={(!inputMessage.trim() && !selectedImage) || isLoading || remainingQuestions <= 0}
                   size="icon"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-10 sm:h-10 bg-gray-900 hover:bg-gray-800 dark:bg-white dark:hover:bg-gray-100 rounded-lg"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-9 sm:h-9 bg-black hover:bg-gray-800 dark:bg-white dark:hover:bg-gray-100 rounded-full disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                 >
-                  <Send className="w-4 h-4 sm:w-5 sm:h-5 text-white dark:text-gray-900" />
+                  <Send className="w-4 h-4 text-white dark:text-gray-900" />
                 </Button>
               </div>
             </div>

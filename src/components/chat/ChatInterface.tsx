@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ChatSidebar } from "./ChatSidebar";
+import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
 import { 
   saveMessage, 
   createChatSession, 
@@ -464,10 +465,11 @@ export function ChatInterface({ user, onLogout }: ChatInterfaceProps) {
                           </div>
                         )}
                         
-                        <div className="prose prose-gray dark:prose-invert max-w-none">
-                          <p className="whitespace-pre-wrap leading-relaxed text-gray-900 dark:text-gray-100 mb-0">
-                            {message.content}
-                          </p>
+                        <div className="text-gray-900 dark:text-gray-100">
+                          <MarkdownRenderer 
+                            content={message.content} 
+                            isDark={document.documentElement.classList.contains('dark')}
+                          />
                         </div>
                         
                         {/* Message Actions - Only for AI messages */}
